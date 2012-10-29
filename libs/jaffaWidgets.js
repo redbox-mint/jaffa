@@ -73,6 +73,51 @@
 /**   END of  top-level implementation of Class inheritance         */
 /********************************************************************/
 
+// A not so straight forward adaptation taken from here. Very useful starting
+// point though:
+// http://stackoverflow.com/questions/36183/replacing-the-nth-instance-of-a-regex-match-in-javascript
+// 
+// Very useful in manipulating lists during a reorder when the contents may
+//  be at any arbitrary depth in a nested hierarchy. This method searches for
+//  how many lists deep the element is and the then replaces the *.N.* portion
+//  of the ID, ONLY if it is match the criteria.
+// ie. We aren't replace the Nth match, we are replace the Nth POSSIBLE match
+//     if the numbers line up.
+String.prototype.domUpdate = function(from, to, depth) {
+  var parts, tempParts, toggle, depthCount;
+  var regex = new RegExp("(\\.[0-9]+\\.)");
+  
+  // If there's no match, bail
+  if (this.search(regex) === -1) {
+    return this;
+  }
+  // Break up the String
+  parts = this.split(regex);
+  // Now walk through it. Every 2nd element is a potential candidate
+  // but it must match at both depth and content to be valid
+  toggle = false;
+  depthCount = 1;
+  tempParts = [];
+  for (var k = 0; k < parts.length; k++) {
+    // List section
+    if (toggle) {
+      toggle = false;
+      if (depthCount == depth && from == parts[k]) {
+        tempParts.push(to);
+      } else {
+        tempParts.push(parts[k]);
+      }
+      depthCount++;
+
+    // Normal section
+    } else {
+      tempParts.push(parts[k]);
+      toggle = true;
+    }
+  }
+  return tempParts.join("");
+};
+
 function jaffaWidgets(jaffaObject) {
     var jaffa = jaffaObject;
     var widgets = {};
@@ -294,8 +339,8 @@ function jaffaWidgets(jaffaObject) {
         },
 
         change: function(fieldName, isValid) {},
-        domUpdate: function(from, to) {
-            this.config.id = this.config.id.replace(from, to);
+        domUpdate: function(from, to, depth) {
+            this.config.id = this.config.id.domUpdate(from, to, depth);
         },
         jaffaUpdate: function() {},
 
@@ -461,9 +506,9 @@ function jaffaWidgets(jaffaObject) {
             if (deleteItemHtml == null) {
                 deleteItemHtml = "<span style=\"cursor: pointer;\">&laquo;"+deleteItemText+"&raquo;</span>";
             }
-            var addItem = $("<div class=\"jaffaDeleteItem\" style=\"float: left;\">"+deleteItemHtml+"</div>");
-            itemContainer.append(addItem);
-            addItem.on("click", function() {
+            var delItem = $("<div class=\"jaffaDeleteItem\" style=\"float: left;\">"+deleteItemHtml+"</div>");
+            itemContainer.append(delItem);
+            delItem.on("click", function() {
                 thisWidget.clickDelete(this);
             });
 
@@ -473,7 +518,7 @@ function jaffaWidgets(jaffaObject) {
 
             // Add our item conainer to the list,
             // just before the 'Add Item' control
-            itemContainer.insertBefore(ui.find(".jaffaAddItem"));
+            itemContainer.insertBefore(ui.find(".jaffaAddItem:last"));
 
             if (disableSorting !== true) {
                 ui.sortable({
@@ -592,6 +637,18 @@ function jaffaWidgets(jaffaObject) {
             }
         },
 
+        deleteWidget: function() {
+          for (var widgetId in this.myChildren) {
+            this.myChildren[widgetId].deleteWidget();
+          }
+        },
+
+        domUpdate: function(from, to, depth) {
+          for (var widgetId in this.myChildren) {
+            this.myChildren[widgetId].domUpdate(from, to, depth);
+          }
+        },
+
         // Callbacks
         reorder: function(event, ui) {
             var newChildren = {};
@@ -599,9 +656,9 @@ function jaffaWidgets(jaffaObject) {
             // Find all the children via the DOM for a new order
             var container = this.getContainer();
             var thisWidget = this;
-            container.find(".jaffaList").each(function(i, element) {
+            container.children(".jaffaList").each(function(i, element) {
                 element = $(element);
-                var rowCount = element.find(".jaffaItemNumber");
+                var rowCount = element.find(".jaffaItemNumber:first");
                 var newIndex = i + 1;
                 var oldIndex = rowCount.text();
                 var oldChild = thisWidget.childByIndex(oldIndex);
@@ -622,8 +679,10 @@ function jaffaWidgets(jaffaObject) {
                     // Step 3) Update the containers in DOM
                     element.attr("id", newId+"Item");
                     element.find(".jaffaListItem").attr("id", newId);
+                    // How deep are we?
+                    var depth = element.parents(".jaffaList").size() + 1;
                     // Step 4) Let the widget know that sub-fields will change
-                    oldChild.domUpdate("."+oldIndex+".", "."+newIndex+".");
+                    oldChild.domUpdate("."+oldIndex+".", "."+newIndex+".", depth);
                 // Just move
                 } else {
                     newChildren[oldChild.id()] = oldChild;
@@ -646,7 +705,7 @@ function jaffaWidgets(jaffaObject) {
         },
         clickDelete: function(element) {
             element = $(element);
-            var index = element.parent().find(".jaffaItemNumber").text();
+            var index = element.parent().find(".jaffaItemNumber:first").text();
             var widgetToDelete = this.childByIndex(index);
             var itemContainer = widgetToDelete.getContainer().parent();
             widgetToDelete.deleteWidget();
