@@ -298,7 +298,7 @@ function jaffaForm(jaffaObject) {
             // TODO: Testing
             for (field in jaffa.serverData) {
                 if (field in form.fields) {
-                    var result = form.value(field, form.value(field));
+                    var result = form.value(field, jaffa.serverData[field]);
                     if (result == null) {
                         jaffa.logError("Error loading form field '" + field + "'. Unable to assign value to GUI.");
                     } else {
