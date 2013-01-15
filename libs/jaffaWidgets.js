@@ -70,29 +70,31 @@
     };
 })();
 
-/**   END of  top-level implementation of Class inheritance         */
+/** END of  top-level implementation of Class inheritance (and MIT) */
 /********************************************************************/
 
-// A not so straight forward adaptation taken from here. Very useful starting
-// point though:
+// A not so straight forward adaptation taken from here. Very useful starting point though
 // http://stackoverflow.com/questions/36183/replacing-the-nth-instance-of-a-regex-match-in-javascript
 // 
 // Very useful in manipulating lists during a reorder when the contents may
-//  be at any arbitrary depth in a nested hierarchy. This method searches for
+//  be at any arbitrary depth in a nested hierarchy. This method search for
 //  how many lists deep the element is and the then replaces the *.N.* portion
 //  of the ID, ONLY if it is match the criteria.
 // ie. We aren't replace the Nth match, we are replace the Nth POSSIBLE match
 //     if the numbers line up.
+
 String.prototype.domUpdate = function(from, to, depth) {
   var parts, tempParts, toggle, depthCount;
   var regex = new RegExp("(\\.[0-9]+\\.)");
-  
+
   // If there's no match, bail
   if (this.search(regex) === -1) {
     return this;
   }
+
   // Break up the String
   parts = this.split(regex);
+
   // Now walk through it. Every 2nd element is a potential candidate
   // but it must match at both depth and content to be valid
   toggle = false;
@@ -115,6 +117,7 @@ String.prototype.domUpdate = function(from, to, depth) {
       toggle = true;
     }
   }
+
   return tempParts.join("");
 };
 
@@ -408,7 +411,8 @@ function jaffaWidgets(jaffaObject) {
         },
         childByIndex: function(index) {
             for (var id in this.myChildren) {
-                var found = id.indexOf("."+index+".");
+                // this.baseField.length prevents finding the parent of a List in List
+                var found = id.indexOf("."+index+".", this.baseField.length);
                 if (found != -1) {
                     return this.myChildren[id];
                 }
@@ -439,13 +443,26 @@ function jaffaWidgets(jaffaObject) {
             // Find out if we already have data
             var counter = this.childCount() + 1;
             var subField = this.baseField + "." + counter + "." + field;
-            
+
             // TODO minSize instead of assuming counter != 1
             // TODO maxSize constraint
 
+            function hasNoUnmanagedSubfield(baseName, checkList) {
+                for (var key in checkList) {
+                    var testName = baseName + "." + counter + "." + checkList[key];
+                    if (jaffa.form.unmanaged[testName] != null) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
             // Reasons to create... unmanaged data, minimum rows... or forced
-            var minSize = this.getConfig("min-size") || 1;
-            if (jaffa.form.unmanaged[subField] == null && (counter > minSize) && !forceNew) {
+            var minSize = this.getConfig("min-size");
+            if (minSize == null) {
+              minSize = 1;
+            }
+            if (hasNoUnmanagedSubfield(this.baseField, this.subFields) && (counter > minSize) && !forceNew) {
                 return false;
             }
             jaffa.logDebug("Widget '"+this.id()+"' adding child "+counter);
@@ -592,7 +609,7 @@ function jaffaWidgets(jaffaObject) {
             while (result === true) {
                 result = this.addChild(false);
             }
-            if (this.childCount() == 0) {
+            if (this.childCount() == 0 && this.getConfig("min-size") != 0) {
                 alert("Children for '" + this.id() + "' " + this.childCount());
             }
 
@@ -617,39 +634,44 @@ function jaffaWidgets(jaffaObject) {
                 var emptyContainer = $("<div class=\"jaffaEmptyList\">"+emptyMessage+"</div>");
                 emptyContainer.insertBefore(ui.find(".jaffaAddItem"));
             } else {
-                ui.find(".jaffaEmptyList").remove();
+                ui.find("> .jaffaEmptyList").remove();
             }
 
             // Show / Hide 'Delete' if min limit reached
-            var minSize = this.getConfig("min-size") || 0;
+            var minSize = this.getConfig("min-size");
+            if (minSize == null) {
+                minSize = 1;
+            }
             var maxSize = this.getConfig("max-size") || -1;
             if (numChildren <= minSize) {
-                ui.find(".jaffaDeleteItem").hide('fast')
+                // Very, very strange. ONLY when using List in List, adding timings to the hide()/show()
+                // transitions will cause them to not fire at all if the elements start in a hidden tab.
+                ui.find("> .jaffaList > .jaffaDeleteItem").hide();
             } else {
-                ui.find(".jaffaDeleteItem").show('fast')
+                ui.find("> .jaffaList > .jaffaDeleteItem").show();
             }
 
             // Show / Hide 'Add Item' if max limit reached
             if (maxSize != -1 && numChildren >= maxSize) {
-                ui.find(".jaffaAddItem").hide('fast');
+                ui.children(".jaffaAddItem").hide();
             } else {
-                ui.find(".jaffaAddItem").show('fast');
+                ui.children(".jaffaAddItem").show();
             }
         },
 
         deleteWidget: function() {
-          for (var widgetId in this.myChildren) {
-            this.myChildren[widgetId].deleteWidget();
-          }
+            for (var widgetId in this.myChildren) {
+                this.myChildren[widgetId].deleteWidget();
+            }
         },
 
         domUpdate: function(from, to, depth) {
-          for (var widgetId in this.myChildren) {
-            this.myChildren[widgetId].domUpdate(from, to, depth);
-          }
-          // Fix baseField. If children are added after the update
-          //  they will have the wrong field otherwise.
-          this.baseField = this.baseField.domUpdate(from, to, depth);
+            for (var widgetId in this.myChildren) {
+                this.myChildren[widgetId].domUpdate(from, to, depth);
+            }
+            // Fix baseField. If children are added after the update
+            //  they will have the wrong field otherwise.
+            this.baseField = this.baseField.domUpdate(from, to, depth);
         },
 
         jaffaUpdate: function() {
@@ -679,17 +701,17 @@ function jaffaWidgets(jaffaObject) {
 
                 // Change the index value and move it
                 if (oldIndex != newIndex) {
+                    // How deep are we?
+                    var depth = element.parents(".jaffaList").size() + 1;
                     // Step 1) Update 'myChildren' indexes
                     var oldId = oldChild.id();
-                    var newId = oldId.replace("."+oldIndex+".", "."+newIndex+".");
+                    var newId = oldId.domUpdate("."+oldIndex+".", "."+newIndex+".", depth);
                     newChildren[newId] = oldChild;
                     // Step 2) Row numbers updated
                     rowCount.html(newIndex);
                     // Step 3) Update the containers in DOM
                     element.attr("id", newId+"Item");
                     element.find(".jaffaListItem").attr("id", newId);
-                    // How deep are we?
-                    var depth = element.parents(".jaffaList").size() + 1;
                     // Step 4) Let the widget know that sub-fields will change
                     oldChild.domUpdate("."+oldIndex+".", "."+newIndex+".", depth);
                 // Just move
