@@ -522,7 +522,7 @@ function jaffaWidgets(jaffaObject) {
 
             if (disableSorting !== true) {
                 ui.sortable({
-                    items: ".jaffaList",
+                    items: "> .jaffaList",
                     handle: ".jaffaSorting",
                     placeholder: "ui-state-highlight",
                     forcePlaceholderSize: true,
@@ -647,6 +647,15 @@ function jaffaWidgets(jaffaObject) {
           for (var widgetId in this.myChildren) {
             this.myChildren[widgetId].domUpdate(from, to, depth);
           }
+          // Fix baseField. If children are added after the update
+          //  they will have the wrong field otherwise.
+          this.baseField = this.baseField.domUpdate(from, to, depth);
+        },
+
+        jaffaUpdate: function() {
+            for (var widgetId in this.myChildren) {
+                this.myChildren[widgetId].jaffaUpdate();
+            }
         },
 
         // Callbacks
