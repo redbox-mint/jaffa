@@ -1,3 +1,3 @@
 JAFFA
 =====
-Check out https://dev.redboxresearchdata.com.au/jenkins/job/JAFFA/
+Check out https://dev.redboxresearchdata.com.au/jenkins/job/JAFFA/.
