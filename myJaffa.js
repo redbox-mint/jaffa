@@ -385,7 +385,6 @@ function startJaffa() {
             widgetScripts: [
                 "widgets/text.js",
                 "widgets/dropDown.js",
-                "widgets/anzsrcSelection.js",
                 "widgets/radioGroup.js"
             ]
         });
