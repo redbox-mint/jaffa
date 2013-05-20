@@ -252,7 +252,7 @@ function jaffaWidgets(jaffaObject) {
 
                     // Second, is it in our document as a selector?
                     target = $(field);
-                    if (target != null) {
+                    if (target.length > 0) {
                         target.html(value);
                         found = true;
                     }
